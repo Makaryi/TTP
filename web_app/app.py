@@ -204,31 +204,77 @@ def load_models():
     _download_from_hf(HF_REPO, 'best_emotion_model.h5')
     _download_from_hf(HF_REPO, 'lie_detector_model.h5')
 
-    # ── Emotion model ─────────────────────────────────────────────────────────
+    # ── Патч для совместимости версий Keras ──────────────────────────────────
     try:
-        from tensorflow.keras.models import load_model as tf_load
-        path = os.path.join(MODELS_DIR, 'best_emotion_model.h5')
-        if os.path.exists(path) and os.path.getsize(path) > 1024:
-            model = tf_load(path)
+        import tensorflow as tf
+        _orig_input_init = tf.keras.layers.InputLayer.__init__
+        def _patched_input_init(self, *args, **kwargs):
+            kwargs.pop('optional', None)
+            kwargs.pop('batch_shape', None) if 'input_shape' in kwargs or 'shape' in kwargs else None
+            _orig_input_init(self, *args, **kwargs)
+        tf.keras.layers.InputLayer.__init__ = _patched_input_init
+    except Exception:
+        pass
+
+    def _safe_load(path):
+        import tensorflow as tf
+        # Попытка 1: стандартная загрузка
+        try:
+            return tf.keras.models.load_model(path, compile=False)
+        except Exception:
+            pass
+        # Попытка 2: через custom_object_scope с патчем InputLayer
+        try:
+            class _CompatInputLayer(tf.keras.layers.InputLayer):
+                def __init__(self, *args, **kwargs):
+                    kwargs.pop('optional', None)
+                    super().__init__(*args, **kwargs)
+            with tf.keras.utils.custom_object_scope({'InputLayer': _CompatInputLayer}):
+                return tf.keras.models.load_model(path, compile=False)
+        except Exception:
+            pass
+        # Попытка 3: только веса + пересборка архитектуры вручную
+        try:
+            import h5py
+            with h5py.File(path, 'r') as f:
+                model_config = f.attrs.get('model_config', None)
+            if model_config:
+                import json
+                cfg = json.loads(model_config)
+                # Убираем 'optional' рекурсивно
+                cfg_str = json.dumps(cfg).replace(', "optional": false', '').replace(', "optional": true', '')
+                m = tf.keras.models.model_from_json(cfg_str)
+                m.load_weights(path)
+                return m
+        except Exception as e3:
+            print(f"  ❌ Все попытки загрузки провалились: {e3}")
+        return None
+
+    # ── Emotion model ─────────────────────────────────────────────────────────
+    path = os.path.join(MODELS_DIR, 'best_emotion_model.h5')
+    if os.path.exists(path) and os.path.getsize(path) > 1024:
+        m = _safe_load(path)
+        if m is not None:
+            model = m
             model_loaded = True
             print(f"✅ Emotion model загружен ({os.path.getsize(path)//1024//1024} MB)")
         else:
-            print("⚠️  best_emotion_model.h5 не найден")
-    except Exception as e:
-        print(f"⚠️  Ошибка загрузки emotion model: {e}")
+            print("⚠️  Emotion model не удалось загрузить")
+    else:
+        print("⚠️  best_emotion_model.h5 не найден")
 
     # ── Lie detector model ────────────────────────────────────────────────────
-    try:
-        from tensorflow.keras.models import load_model as tf_load
-        path = os.path.join(MODELS_DIR, 'lie_detector_model.h5')
-        if os.path.exists(path) and os.path.getsize(path) > 1024:
-            lie_model = tf_load(path)
+    path = os.path.join(MODELS_DIR, 'lie_detector_model.h5')
+    if os.path.exists(path) and os.path.getsize(path) > 1024:
+        m = _safe_load(path)
+        if m is not None:
+            lie_model = m
             lie_model_loaded = True
-            print(f"✅ Lie model загружен")
+            print("✅ Lie model загружен")
         else:
-            print("⚠️  lie_detector_model.h5 не найден")
-    except Exception as e:
-        print(f"⚠️  Ошибка загрузки lie model: {e}")
+            print("⚠️  Lie model не удалось загрузить")
+    else:
+        print("⚠️  lie_detector_model.h5 не найден")
 
     print(f"{'='*55}\n")
 
