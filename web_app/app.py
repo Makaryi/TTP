@@ -316,6 +316,14 @@ def _normalize(scores: dict) -> dict:
     return {k: (v / total) * 100 for k, v in scores.items()}
 
 
+def _preprocess_roi(roi_gray):
+    """Preprocessing, matching FER-2013 training: CLAHE + normalize [0,1]."""
+    import cv2
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    roi_eq = clahe.apply(roi_gray)
+    return (roi_eq.astype('float32') / 255)[np.newaxis, :, :, np.newaxis]
+
+
 def _predict_face_emotion(img_array) -> dict | None:
     """Возвращает dict эмоций по numpy RGB-изображению, или None если нет лица/модели."""
     import cv2
@@ -329,8 +337,7 @@ def _predict_face_emotion(img_array) -> dict | None:
 
     (x, y, w, h) = detected[0]
     roi = cv2.resize(gray[y:y+h, x:x+w], (48, 48))
-    roi = roi.astype('float32') / 255
-    roi = roi[np.newaxis, :, :, np.newaxis]
+    roi = _preprocess_roi(roi)
     pred = model.predict(roi, verbose=0)
     scores = {EMOTIONS[i]: float(pred[0][i] * 100) for i in range(len(EMOTIONS))}
     return _normalize(scores)
@@ -423,8 +430,7 @@ def recognize_face():
             n_faces = len(detected)
             for i, (x, y, w, h) in enumerate(detected):
                 roi = cv2.resize(gray[y:y+h, x:x+w], (48, 48))
-                roi = roi.astype('float32') / 255
-                roi = roi[np.newaxis, :, :, np.newaxis]
+                roi = _preprocess_roi(roi)
                 pred = model.predict(roi, verbose=0)
                 scores = {EMOTIONS[j]: float(pred[0][j] * 100) for j in range(len(EMOTIONS))}
                 scores = _normalize(scores)
@@ -508,8 +514,7 @@ def recognize_frame():
 
         if model_loaded:
             roi = cv2.resize(gray[y:y+h, x:x+w], (48, 48))
-            roi = roi.astype('float32') / 255
-            roi = roi[np.newaxis, :, :, np.newaxis]
+            roi = _preprocess_roi(roi)
             pred = model.predict(roi, verbose=0)
             scores = {EMOTIONS[i]: float(pred[0][i] * 100) for i in range(len(EMOTIONS))}
             scores = _normalize(scores)
@@ -559,7 +564,7 @@ def detect_lie():
             if len(faces) > 0 and lie_model_loaded:
                 (x, y, w, h) = faces[0]
                 roi = cv2.resize(gray[y:y+h, x:x+w], (48, 48))
-                roi = (roi.astype('float32') / 255)[np.newaxis, :, :, np.newaxis]
+                roi = _preprocess_roi(roi)
                 audio_in = audio_features[np.newaxis, :]
                 pred = lie_model.predict(
                     {'video_input': roi, 'audio_input': audio_in}, verbose=0)
@@ -569,7 +574,7 @@ def detect_lie():
                 # Нет lie модели, но есть emotion — оцениваем стресс по эмоции
                 (x, y, w, h) = faces[0]
                 roi = cv2.resize(gray[y:y+h, x:x+w], (48, 48))
-                roi = (roi.astype('float32') / 255)[np.newaxis, :, :, np.newaxis]
+                roi = _preprocess_roi(roi)
                 pred = model.predict(roi, verbose=0)
                 scores = {EMOTIONS[i]: float(pred[0][i]) for i in range(len(EMOTIONS))}
                 # Стресс = сумма "негативных" эмоций
