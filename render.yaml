@@ -28,6 +28,6 @@ services:
       # ID репозитория на HuggingFace: "username/repo-name"
       # Задать в Render Dashboard → Environment → Add Variable
       - key: HF_REPO_ID
-        sync: false                   # секрет — задаётся вручную
+        value: Makaryi/emotion-models
       - key: PYTHON_VERSION
         value: 3.11.0
