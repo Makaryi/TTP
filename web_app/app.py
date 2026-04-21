@@ -2,8 +2,9 @@
 Production Flask app — загружает модели с HuggingFace Hub.
 Deploy: Render.com  |  Frontend: Cloudflare Pages
 """
-import os, sys, json, base64, io
+import os, sys, json, base64, io, re
 import numpy as np
+from collections import deque
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
@@ -35,105 +36,175 @@ EMOTION_EMOJI = {
 }
 ALLOWED_EXT = {'png', 'jpg', 'jpeg', 'gif', 'wav', 'mp3', 'ogg', 'webm'}
 
-# ── Ключевые слова для анализа текста ────────────────────────────────────────
-TEXT_KEYWORDS = {
-    'Angry':    ['злой', 'злость', 'гнев', 'бесит', 'раздражает', 'ненавижу', 'достал',
-                 'angry', 'rage', 'furious', 'hate', 'annoying', 'mad', 'irritated',
-                 'ярость', 'агрессия', 'взбешён', 'в ярости', 'злюсь'],
-    'Disgust':  ['отвратительно', 'тошнит', 'мерзко', 'противно', 'гадость', 'фу',
-                 'disgusting', 'gross', 'nasty', 'awful', 'horrible', 'revolting',
-                 'омерзительно', 'отвращение'],
-    'Fear':     ['страшно', 'боюсь', 'страх', 'ужас', 'пугает', 'тревога', 'паника',
-                 'fear', 'scary', 'afraid', 'terrified', 'anxious', 'panic', 'worried',
-                 'испуган', 'опасаюсь', 'нервничаю', 'беспокоюсь'],
-    'Happy':    ['счастлив', 'радость', 'радуюсь', 'весело', 'отлично', 'прекрасно',
-                 'замечательно', 'улыбка', 'люблю', 'обожаю', 'ура', 'классно',
-                 'happy', 'joy', 'great', 'wonderful', 'love', 'amazing', 'awesome',
-                 'excited', 'fantastic', 'excellent', 'супер', 'здорово'],
-    'Sad':      ['грустно', 'грусть', 'печаль', 'печально', 'плачу', 'горе', 'тоска',
-                 'плохо', 'несчастен', 'уныние', 'депрессия', 'скучаю',
-                 'sad', 'unhappy', 'depressed', 'crying', 'miserable', 'lonely',
-                 'disappointed', 'heartbroken', 'жаль', 'сожалею'],
-    'Surprise': ['удивлён', 'удивление', 'неожиданно', 'вот это да', 'ого', 'ничего себе',
-                 'не может быть', 'вау', 'шок', 'неожиданность',
-                 'surprised', 'wow', 'omg', 'unexpected', 'amazing', 'unbelievable',
-                 'shocked', 'astonished', 'серьёзно', 'правда'],
-    'Neutral':  ['нормально', 'окей', 'ладно', 'понятно', 'ясно', 'хорошо', 'ок',
-                 'okay', 'fine', 'alright', 'normal', 'neutral', 'whatever',
-                 'обычно', 'стандартно'],
+# ── Взвешенные ключевые слова (фраза, вес) ──────────────────────────────────
+TEXT_KEYWORDS_W = {
+    'Angry': [
+        ('ненавижу', 3.0), ('убью', 3.0), ('терпеть не могу', 3.0), ('пошёл', 2.5),
+        ('злость', 2.0), ('гнев', 2.0), ('ярость', 2.0), ('бесит', 2.0),
+        ('достал', 2.0), ('взбешён', 2.0), ('злюсь', 2.0), ('раздражает', 1.5),
+        ('агрессия', 1.5), ('злой', 1.5), ('нервирует', 1.0),
+        ('hate', 2.5), ('rage', 2.5), ('furious', 2.5), ('angry', 2.0),
+        ('mad', 1.5), ('pissed', 2.0), ('irritated', 1.5), ('annoying', 1.5),
+        ('can\'t stand', 3.0), ('outraged', 2.0),
+    ],
+    'Disgust': [
+        ('омерзительно', 2.5), ('отвратительно', 2.5), ('мерзко', 2.0),
+        ('тошнит', 2.0), ('противно', 2.0), ('гадость', 2.0), ('блевать', 2.5),
+        ('фу', 1.5), ('отвращение', 2.0), ('гнусно', 2.0),
+        ('disgusting', 2.5), ('gross', 2.0), ('nasty', 2.0), ('revolting', 2.5),
+        ('horrible', 1.5), ('awful', 1.5), ('yuck', 2.0), ('eww', 2.0),
+        ('repulsive', 2.5), ('vile', 2.5),
+    ],
+    'Fear': [
+        ('ужас', 2.5), ('боюсь', 2.0), ('страх', 2.0), ('паника', 2.5),
+        ('пугает', 1.5), ('испуган', 2.0), ('дрожу', 2.0), ('тревога', 1.5),
+        ('опасаюсь', 1.5), ('нервничаю', 1.0), ('беспокоюсь', 1.0),
+        ('terrified', 3.0), ('horrified', 2.5), ('scared', 2.5), ('afraid', 2.0),
+        ('fear', 2.0), ('panic', 2.5), ('anxious', 2.0), ('worried', 1.5),
+        ('dread', 2.5), ('phobia', 2.0), ('nightmare', 2.0),
+    ],
+    'Happy': [
+        ('счастлив', 2.5), ('радуюсь', 2.5), ('ликую', 3.0), ('в восторге', 2.5),
+        ('обожаю', 2.5), ('восторг', 2.5), ('радость', 2.0), ('улыбаюсь', 2.0),
+        ('весело', 2.0), ('замечательно', 2.0), ('прекрасно', 2.0),
+        ('кайф', 2.0), ('ура', 2.0), ('люблю', 1.5), ('отлично', 1.5),
+        ('классно', 1.5), ('супер', 1.5), ('здорово', 1.5),
+        ('ecstatic', 3.0), ('thrilled', 2.5), ('delighted', 2.5), ('joyful', 2.5),
+        ('happy', 2.5), ('excited', 2.0), ('fantastic', 2.0), ('wonderful', 2.0),
+        ('awesome', 1.5), ('amazing', 1.5), ('great', 1.0), ('love it', 2.0),
+        ('yay', 2.0), ('overjoyed', 3.0),
+    ],
+    'Sad': [
+        ('плачу', 2.5), ('рыдаю', 3.0), ('горе', 2.5), ('опустошён', 2.5),
+        ('безнадёжно', 2.5), ('несчастен', 2.5), ('уныние', 2.0),
+        ('грустно', 2.0), ('грусть', 2.0), ('печаль', 2.0), ('тоска', 2.0),
+        ('расстроен', 2.0), ('депрессия', 2.5), ('одинок', 2.0),
+        ('скучаю', 1.5), ('плохо', 1.0), ('жаль', 1.5), ('сожалею', 1.5),
+        ('devastated', 3.0), ('heartbroken', 3.0), ('miserable', 2.5),
+        ('depressed', 2.5), ('crying', 2.5), ('tears', 2.0), ('sad', 2.0),
+        ('lonely', 2.0), ('unhappy', 2.0), ('gloomy', 2.0), ('blue', 1.5),
+        ('disappointed', 2.0), ('hopeless', 2.5),
+    ],
+    'Surprise': [
+        ('вот это да', 2.5), ('ничего себе', 2.5), ('в шоке', 2.5),
+        ('офигеть', 2.0), ('шок', 2.0), ('удивлён', 2.0), ('удивление', 2.0),
+        ('неожиданно', 2.0), ('не может быть', 2.5), ('ого', 2.0), ('вау', 2.0),
+        ('astonished', 2.5), ('astounded', 2.5), ('shocked', 2.5),
+        ('wow', 2.5), ('omg', 2.0), ('no way', 2.5), ('unbelievable', 2.5),
+        ('incredible', 2.0), ('mind-blowing', 3.0), ('unexpected', 2.0),
+        ('surprised', 2.0), ('jaw-dropping', 3.0),
+    ],
+    'Neutral': [
+        ('нормально', 1.0), ('окей', 1.0), ('ок', 1.0), ('ладно', 1.0),
+        ('понятно', 1.0), ('ясно', 1.0), ('обычно', 1.0), ('стандартно', 1.0),
+        ('okay', 1.0), ('fine', 1.0), ('alright', 1.0), ('whatever', 1.5),
+        ('so-so', 1.0), ('not bad', 1.0), ('as usual', 1.0),
+    ],
+}
+
+# Слова-отрицания (рядом с ключевым словом инвертируют смысл)
+_NEGATIONS = {'не', 'нет', 'ни', 'без', 'никогда', 'никак', 'нисколько',
+              'no', 'not', 'never', 'neither', 'nor', "don't", "doesn't",
+              "didn't", "won't", "can't", "couldn't", "wouldn't"}
+
+_NEGATION_SWAP = {
+    'Happy': 'Sad', 'Sad': 'Happy',
+    'Angry': 'Neutral', 'Fear': 'Neutral',
+    'Disgust': 'Neutral', 'Surprise': 'Neutral', 'Neutral': 'Neutral',
 }
 
 
 def analyze_text_emotion(text: str) -> dict:
-    """Анализ эмоций в тексте по ключевым словам."""
+    """Анализ эмоций: взвешенные слова + обнаружение отрицания + фразы."""
     text_lower = text.lower()
+    tokens = re.split(r'[\s,\.!?;:()\[\]"]+', text_lower)
     scores = {e: 0.0 for e in EMOTIONS}
 
-    for emotion, keywords in TEXT_KEYWORDS.items():
-        for kw in keywords:
-            if kw in text_lower:
-                scores[emotion] += 1.0
+    for emotion, kw_list in TEXT_KEYWORDS_W.items():
+        for phrase, weight in kw_list:
+            if phrase not in text_lower:
+                continue
+            # Проверяем отрицание: ищем negation-слово в 3 токенах перед фразой
+            phrase_pos = text_lower.find(phrase)
+            prefix_tokens = re.split(r'\s+', text_lower[:phrase_pos].strip())[-3:]
+            negated = any(tok in _NEGATIONS for tok in prefix_tokens)
+            if negated:
+                target = _NEGATION_SWAP.get(emotion, 'Neutral')
+                scores[target] += weight * 0.6
+            else:
+                scores[emotion] += weight
 
     total = sum(scores.values())
     if total == 0:
-        # Нет совпадений — нейтральный
         scores['Neutral'] = 1.0
         total = 1.0
 
-    # Нормализуем в проценты
-    for e in scores:
-        scores[e] = (scores[e] / total) * 100.0
-
-    return scores
+    return {e: (scores[e] / total) * 100.0 for e in EMOTIONS}
 
 
 def analyze_audio_emotion(audio_path: str) -> dict:
-    """Анализ эмоций в аудио через librosa."""
+    """Улучшенный анализ: 13 MFCC (mean+std) + RMS + ZCR + centroid + rolloff + tempo."""
     try:
         import librosa
         y, sr = librosa.load(audio_path, sr=22050, duration=10.0)
 
-        # Извлекаем признаки
-        energy    = float(np.mean(librosa.feature.rms(y=y)))
-        zcr       = float(np.mean(librosa.feature.zero_crossing_rate(y)))
-        tempo, _  = librosa.beat.beat_track(y=y, sr=sr)
-        tempo     = float(tempo)
-        centroid  = float(np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)))
-        mfccs     = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-        mfcc_mean = float(np.mean(mfccs[0]))  # первый MFCC ≈ громкость/тембр
+        if len(y) < int(sr * 0.3):  # аудио слишком короткое
+            return {e: (100.0 / len(EMOTIONS)) for e in EMOTIONS}
 
-        # Эвристика по признакам:
-        # Высокая энергия + высокий темп → злость или счастье
-        # Низкая энергия + низкий темп   → грусть
-        # Высокий centroid                → страх или удивление
-        # Средние значения               → нейтраль
+        # ── Базовые признаки ──────────────────────────────────────────────────
+        energy   = float(np.sqrt(np.mean(y ** 2)))           # RMS
+        zcr      = float(np.mean(librosa.feature.zero_crossing_rate(y)))
+        centroid = float(np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)))
+        rolloff  = float(np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr, roll_percent=0.85)))
+        try:
+            tempo = float(np.atleast_1d(librosa.beat.beat_track(y=y, sr=sr)[0])[0])
+        except Exception:
+            tempo = 100.0
 
-        scores = {e: 0.0 for e in EMOTIONS}
+        # ── MFCC: 13 коэффициентов, mean + std ───────────────────────────────
+        mfccs      = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+        mfcc_mean  = np.mean(mfccs, axis=1)   # (13,)
+        mfcc_std   = np.std(mfccs, axis=1)    # (13,) — нестабильность = страх/удивление
 
-        # Нормируем признаки к [0,1]
-        energy_norm   = min(energy / 0.1, 1.0)
-        tempo_norm    = min(tempo / 180.0, 1.0)
-        centroid_norm = min(centroid / 4000.0, 1.0)
+        # ── Нормировка признаков к [0, 1] ────────────────────────────────────
+        energy_n   = float(np.clip(energy / 0.08, 0, 1))
+        zcr_n      = float(np.clip(zcr / 0.12, 0, 1))
+        centroid_n = float(np.clip(centroid / 5000.0, 0, 1))
+        rolloff_n  = float(np.clip(rolloff / 8000.0, 0, 1))
+        tempo_n    = float(np.clip(tempo / 160.0, 0, 1))
+        # MFCC1 ≈ общий тембр/громкость; MFCC2 ≈ форманты
+        mfcc1_n    = float(np.clip((mfcc_mean[0] + 400) / 800, 0, 1))
+        mfcc2_n    = float(np.clip((mfcc_mean[1] + 100) / 200, 0, 1))
+        instab     = float(np.clip(np.mean(mfcc_std) / 50, 0, 1))  # нестабильность голоса
 
-        scores['Angry']    = energy_norm * 0.4 + tempo_norm * 0.3 + (1 - centroid_norm) * 0.3
-        scores['Happy']    = energy_norm * 0.35 + tempo_norm * 0.35 + centroid_norm * 0.3
-        scores['Sad']      = (1 - energy_norm) * 0.5 + (1 - tempo_norm) * 0.5
-        scores['Fear']     = centroid_norm * 0.4 + (1 - energy_norm) * 0.3 + tempo_norm * 0.3
-        scores['Surprise'] = centroid_norm * 0.5 + energy_norm * 0.3 + tempo_norm * 0.2
-        scores['Disgust']  = (1 - centroid_norm) * 0.4 + energy_norm * 0.3 + (1 - tempo_norm) * 0.3
-        scores['Neutral']  = 1.0 - max(scores.values())
-        scores['Neutral']  = max(scores['Neutral'], 0.0)
+        # ── Эвристические правила ─────────────────────────────────────────────
+        # Angry : высокая энергия + быстро + низкий centroid (грубый голос)
+        s_angry    = energy_n*0.40 + tempo_n*0.25 + (1-centroid_n)*0.20 + zcr_n*0.15
+        # Happy  : высокая энергия + быстро + высокий centroid + MFCC2 высокий
+        s_happy    = energy_n*0.30 + tempo_n*0.30 + centroid_n*0.25 + mfcc2_n*0.15
+        # Sad    : низкая энергия + медленно + стабильный (низкий instab)
+        s_sad      = (1-energy_n)*0.40 + (1-tempo_n)*0.35 + (1-zcr_n)*0.15 + (1-instab)*0.10
+        # Fear   : нестабильность + высокий ZCR + средняя энергия
+        s_fear     = instab*0.35 + zcr_n*0.30 + centroid_n*0.20 + (1-energy_n)*0.15
+        # Surprise: высокий rolloff + ZCR + пики энергии
+        s_surprise = rolloff_n*0.35 + zcr_n*0.30 + energy_n*0.25 + instab*0.10
+        # Disgust : низкий centroid + медленно + умеренная энергия
+        s_disgust  = (1-centroid_n)*0.40 + (1-tempo_n)*0.30 + energy_n*0.20 + (1-rolloff_n)*0.10
+        # Neutral : «остаток» — всё среднее
+        max_val    = max(s_angry, s_happy, s_sad, s_fear, s_surprise, s_disgust)
+        s_neutral  = max(0.0, 1.0 - max_val)
 
-        # Нормализуем
-        total = sum(scores.values())
-        if total > 0:
-            for e in scores:
-                scores[e] = (scores[e] / total) * 100.0
+        raw = {
+            'Angry': s_angry, 'Happy': s_happy, 'Sad': s_sad,
+            'Fear': s_fear, 'Surprise': s_surprise, 'Disgust': s_disgust,
+            'Neutral': s_neutral,
+        }
+        total = sum(raw.values())
+        return {e: (raw[e] / total) * 100.0 for e in EMOTIONS} if total > 0 \
+               else {e: (100.0/len(EMOTIONS)) for e in EMOTIONS}
 
-        return scores
     except Exception as ex:
-        print(f"  ⚠️  audio analysis error: {ex}")
-        # Возвращаем нейтральный если не смогли
+        print(f"  ⚠️  audio error: {ex}")
         return {e: (100.0 / len(EMOTIONS)) for e in EMOTIONS}
 
 
@@ -144,6 +215,9 @@ face_cascade     = None
 model_loaded     = False
 lie_model_loaded = False
 _models_loading  = False  # защита от повторной загрузки
+
+# Temporal smoothing для webcam: скользящее среднее по последним 5 кадрам
+_frame_history: deque = deque(maxlen=5)
 
 
 def _download_from_hf(repo_id: str, filename: str) -> str | None:
@@ -328,12 +402,16 @@ def _predict_face_emotion(img_array) -> dict | None:
         return None
 
     gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-    detected = face_cascade.detectMultiScale(gray, 1.3, 5)
+    detected = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(30, 30))
     if len(detected) == 0:
         return None
 
     (x, y, w, h) = detected[0]
-    roi = cv2.resize(gray[y:y+h, x:x+w], (48, 48))
+    ih, iw = gray.shape
+    pad = int(max(w, h) * 0.15)
+    x1 = max(0, x - pad); y1 = max(0, y - pad)
+    x2 = min(iw, x + w + pad); y2 = min(ih, y + h + pad)
+    roi = cv2.resize(gray[y1:y2, x1:x2], (48, 48))
     roi = _preprocess_roi(roi)
     pred = model.predict(roi, verbose=0)
     scores = {EMOTIONS[i]: float(pred[0][i] * 100) for i in range(len(EMOTIONS))}
@@ -425,8 +503,12 @@ def recognize_face():
             gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
             detected = face_cascade.detectMultiScale(gray, 1.3, 5)
             n_faces = len(detected)
+            ih, iw = gray.shape
             for i, (x, y, w, h) in enumerate(detected):
-                roi = cv2.resize(gray[y:y+h, x:x+w], (48, 48))
+                pad = int(max(w, h) * 0.15)
+                x1 = max(0, x - pad); y1 = max(0, y - pad)
+                x2 = min(iw, x + w + pad); y2 = min(ih, y + h + pad)
+                roi = cv2.resize(gray[y1:y2, x1:x2], (48, 48))
                 roi = _preprocess_roi(roi)
                 pred = model.predict(roi, verbose=0)
                 scores = {EMOTIONS[j]: float(pred[0][j] * 100) for j in range(len(EMOTIONS))}
@@ -499,24 +581,36 @@ def recognize_frame():
                             'scores': {e: 0 for e in EMOTIONS}})
 
         gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        detected = face_cascade.detectMultiScale(gray, 1.3, 5)
+        detected = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(30, 30))
 
         if len(detected) == 0:
+            _frame_history.clear()  # нет лица — сброс истории
             return jsonify({'status': 'success', 'face_detected': False,
                             'emotion': 'None', 'emoji': '-', 'confidence': 0,
                             'scores': {e: 0 for e in EMOTIONS}})
 
+        # Паддинг: расширяем bbox на 15% для захвата контекста лица
         (x, y, w, h) = detected[0]
+        ih, iw = gray.shape
+        pad = int(max(w, h) * 0.15)
+        x1 = max(0, x - pad); y1 = max(0, y - pad)
+        x2 = min(iw, x + w + pad); y2 = min(ih, y + h + pad)
+
         scores = {e: 0.0 for e in EMOTIONS}
 
         if model_loaded:
-            roi = cv2.resize(gray[y:y+h, x:x+w], (48, 48))
+            roi = cv2.resize(gray[y1:y2, x1:x2], (48, 48))
             roi = _preprocess_roi(roi)
             pred = model.predict(roi, verbose=0)
             scores = {EMOTIONS[i]: float(pred[0][i] * 100) for i in range(len(EMOTIONS))}
             scores = _normalize(scores)
+
+            # Temporal smoothing: среднее по последним N предсказаниям
+            _frame_history.append(scores)
+            if len(_frame_history) >= 2:
+                avg = {e: sum(h[e] for h in _frame_history) / len(_frame_history) for e in EMOTIONS}
+                scores = _normalize(avg)
         else:
-            # Нет модели — возвращаем нейтральный с пометкой
             scores['Neutral'] = 100.0
 
         best = max(scores, key=scores.get)
