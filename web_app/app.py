@@ -143,76 +143,94 @@ lie_model        = None
 face_cascade     = None
 model_loaded     = False
 lie_model_loaded = False
+_models_loading  = False  # защита от повторной загрузки
 
 
 def _download_from_hf(repo_id: str, filename: str) -> str | None:
-    """Скачивает файл с HuggingFace Hub в локальный кэш."""
+    """Скачивает файл с HuggingFace Hub напрямую через requests."""
     dest = os.path.join(MODELS_DIR, filename)
-    if os.path.exists(dest):
+    if os.path.exists(dest) and os.path.getsize(dest) > 1024:
         return dest
     try:
-        from huggingface_hub import hf_hub_download
+        import requests
+        url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
         token = os.environ.get('HF_TOKEN') or os.environ.get('HUGGINGFACE_TOKEN')
-        print(f"  📥 Скачиваю {filename} из {repo_id}...")
-        path = hf_hub_download(
-            repo_id=repo_id,
-            filename=filename,
-            local_dir=MODELS_DIR,
-            local_dir_use_symlinks=False,
-            token=token,
-        )
-        print(f"  ✅ {filename} готов")
-        return path
+        headers = {}
+        if token:
+            headers['Authorization'] = f'Bearer {token}'
+        print(f"  📥 Скачиваю {filename} с {url}...")
+        r = requests.get(url, headers=headers, stream=True, timeout=300)
+        r.raise_for_status()
+        with open(dest, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+        size_mb = os.path.getsize(dest) / 1024 / 1024
+        print(f"  ✅ {filename} готов ({size_mb:.1f} MB)")
+        return dest
     except Exception as e:
         print(f"  ❌ Ошибка скачивания {filename}: {e}")
+        if os.path.exists(dest):
+            os.remove(dest)  # удаляем неполный файл
         return None
 
 
+def _load_cascade():
+    """Загружает Haar cascade (быстро, при старте)."""
+    global face_cascade
+    try:
+        import cv2
+        cascade_path = os.path.join(BASE_DIR, 'haarcascade_frontalface_default.xml')
+        if os.path.exists(cascade_path):
+            face_cascade = cv2.CascadeClassifier(cascade_path)
+            print("✅ Face cascade готов")
+    except Exception as e:
+        print(f"⚠️  Ошибка загрузки cascade: {e}")
+
+
 def load_models():
-    global model, lie_model, face_cascade, model_loaded, lie_model_loaded
+    """Скачивает и загружает ML-модели. Вызывается лениво при первом запросе."""
+    global model, lie_model, model_loaded, lie_model_loaded, _models_loading
 
-    HF_REPO = os.environ.get('HF_REPO_ID', '').strip()
+    if _models_loading:
+        return
+    _models_loading = True
 
-    # ── Скачиваем модели с HuggingFace ────────────────────────────────────────
-    if HF_REPO:
-        _download_from_hf(HF_REPO, 'best_emotion_model.h5')
-        _download_from_hf(HF_REPO, 'lie_detector_model.h5')
+    HF_REPO = os.environ.get('HF_REPO_ID', 'Makaryi/emotion-models').strip()
+    print(f"\n{'='*55}")
+    print(f"🔄 Загрузка моделей из {HF_REPO}")
+    print(f"{'='*55}")
+
+    # ── Скачиваем с HuggingFace ───────────────────────────────────────────────
+    _download_from_hf(HF_REPO, 'best_emotion_model.h5')
+    _download_from_hf(HF_REPO, 'lie_detector_model.h5')
 
     # ── Emotion model ─────────────────────────────────────────────────────────
     try:
-        from tensorflow.keras.models import load_model
-        candidates = [
-            os.path.join(MODELS_DIR, 'best_emotion_model.h5'),
-            os.path.join(BASE_DIR, '..', 'models', 'best_emotion_model.h5'),
-        ]
-        for path in candidates:
-            if os.path.exists(path):
-                model = load_model(path)
-                model_loaded = True
-                print(f"✅ Emotion model: {os.path.basename(path)}")
-                break
-        if not model_loaded:
-            print("⚠️  Emotion model не найден — работаем без него")
+        from tensorflow.keras.models import load_model as tf_load
+        path = os.path.join(MODELS_DIR, 'best_emotion_model.h5')
+        if os.path.exists(path) and os.path.getsize(path) > 1024:
+            model = tf_load(path)
+            model_loaded = True
+            print(f"✅ Emotion model загружен ({os.path.getsize(path)//1024//1024} MB)")
+        else:
+            print("⚠️  best_emotion_model.h5 не найден")
     except Exception as e:
         print(f"⚠️  Ошибка загрузки emotion model: {e}")
 
     # ── Lie detector model ────────────────────────────────────────────────────
     try:
-        from tensorflow.keras.models import load_model
-        candidates = [
-            os.path.join(MODELS_DIR, 'lie_detector_model.h5'),
-            os.path.join(BASE_DIR, '..', 'models', 'lie_detector_model.h5'),
-        ]
-        for path in candidates:
-            if os.path.exists(path):
-                lie_model = load_model(path)
-                lie_model_loaded = True
-                print(f"✅ Lie detector model: {os.path.basename(path)}")
-                break
-        if not lie_model_loaded:
-            print("⚠️  Lie detector model не найден — работаем без него")
+        from tensorflow.keras.models import load_model as tf_load
+        path = os.path.join(MODELS_DIR, 'lie_detector_model.h5')
+        if os.path.exists(path) and os.path.getsize(path) > 1024:
+            lie_model = tf_load(path)
+            lie_model_loaded = True
+            print(f"✅ Lie model загружен")
+        else:
+            print("⚠️  lie_detector_model.h5 не найден")
     except Exception as e:
         print(f"⚠️  Ошибка загрузки lie model: {e}")
+
+    print(f"{'='*55}\n")
 
     # ── Haar cascade ──────────────────────────────────────────────────────────
     try:
@@ -226,14 +244,23 @@ def load_models():
 
 
 print("=" * 55)
-print("🚀  AI Emotion & Lie Detector  —  Production")
+print("🚀  AI Emotion & Lie Detector  —  Production v5.0")
 print("=" * 55)
-load_models()
+# Cascade грузим при старте (маленький файл ~1MB)
+_load_cascade()
+# ML-модели — ленивая загрузка при первом API-запросе
+print("⏳  ML-модели будут загружены при первом запросе")
 print("=" * 55)
 
 
 def allowed_file(fname):
     return '.' in fname and fname.rsplit('.', 1)[1].lower() in ALLOWED_EXT
+
+
+def _ensure_models():
+    """Ленивая загрузка: вызвать перед любым API-запросом, требующим модели."""
+    if not model_loaded and not _models_loading:
+        load_models()
 
 
 def _normalize(scores: dict) -> dict:
@@ -298,13 +325,14 @@ def api_status():
         'lie_model_loaded': lie_model_loaded,
         'face_detector': face_cascade is not None,
         'emotions': EMOTIONS,
-        'version': '4.0'
+        'version': '5.0'
     })
 
 
 @app.route('/api/recognize-text', methods=['POST'])
 def recognize_text():
     try:
+        _ensure_models()
         data = request.get_json(silent=True) or {}
         text = data.get('text', '').strip()
         if not text:
@@ -327,6 +355,7 @@ def recognize_text():
 @app.route('/api/recognize-face', methods=['POST'])
 def recognize_face():
     try:
+        _ensure_models()
         if 'image' not in request.files:
             return jsonify({'error': 'No image provided'}), 400
         file = request.files['image']
@@ -374,6 +403,7 @@ def recognize_face():
 @app.route('/api/recognize-audio', methods=['POST'])
 def recognize_audio():
     try:
+        _ensure_models()
         if 'audio' not in request.files:
             return jsonify({'error': 'No audio provided'}), 400
 
@@ -403,6 +433,7 @@ def recognize_audio():
 @app.route('/api/recognize-frame', methods=['POST'])
 def recognize_frame():
     try:
+        _ensure_models()
         import cv2
         data = request.get_json(silent=True) or {}
         if 'image' not in data:
@@ -457,6 +488,7 @@ def recognize_frame():
 @app.route('/api/detect-lie', methods=['POST'])
 def detect_lie():
     try:
+        _ensure_models()
         import cv2
         data = request.get_json(silent=True) or {}
         if 'image' not in data:
@@ -513,6 +545,7 @@ def detect_lie():
 @app.route('/api/recognize-combined', methods=['POST'])
 def recognize_combined():
     try:
+        _ensure_models()
         import cv2
         results = {}
 
