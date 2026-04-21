@@ -186,9 +186,11 @@
         function stopCamera() {
             isRunning = false;
             if (stream) stream.getTracks().forEach(t => t.stop());
+            stream = null;
             updateStatus('ОСТАНОВЛЕНО', false);
             document.getElementById('emotionLabel').textContent = 'ВЫКЛ';
             document.getElementById('currentEmoji').textContent = '-';
+            document.getElementById('noFaceMsg').style.display = 'none';
             emotions.forEach(e => {
                 document.getElementById(`bar-${e}`).style.width = '0%';
                 document.getElementById(`val-${e}`).textContent = '0%';
@@ -218,6 +220,8 @@
                                 body: JSON.stringify({ image: reader.result })
                             });
                             const result = await res.json();
+
+                            if (!isRunning) return; // камера остановлена пока шёл запрос
 
                             if (result.face_detected) {
                                 document.getElementById('noFaceMsg').style.display = 'none';

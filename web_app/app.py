@@ -317,11 +317,8 @@ def _normalize(scores: dict) -> dict:
 
 
 def _preprocess_roi(roi_gray):
-    """Preprocessing, matching FER-2013 training: CLAHE + normalize [0,1]."""
-    import cv2
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    roi_eq = clahe.apply(roi_gray)
-    return (roi_eq.astype('float32') / 255)[np.newaxis, :, :, np.newaxis]
+    """Preprocessing matching FER-2013 training: rescale=1./255, grayscale 48x48."""
+    return (roi_gray.astype('float32') / 255.0)[np.newaxis, :, :, np.newaxis]
 
 
 def _predict_face_emotion(img_array) -> dict | None:
