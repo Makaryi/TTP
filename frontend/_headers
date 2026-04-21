@@ -1,0 +1,10 @@
+# Cloudflare Pages — Security Headers
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=self, microphone=self
+  X-XSS-Protection: 1; mode=block
+
+/static/*
+  Cache-Control: public, max-age=86400

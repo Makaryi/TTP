@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web-Камера Эмоций | AI SYSTEM v2.0</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg-color: #0f172a;
+            --surface-color: #1e293b;
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --danger: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg-color);
+            background-image: radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+        }
+
+        /* Навигация */
+        nav {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        nav .container { max-width: 1400px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 75px; }
+        nav .logo { font-size: 1.5em; font-weight: 900; background: linear-gradient(135deg, #60a5fa, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        nav .links { display: flex; gap: 15px; list-style: none; }
+        nav .links a { text-decoration: none; color: var(--text-muted); font-weight: 500; padding: 8px 16px; border-radius: 12px; transition: all 0.3s; display: flex; align-items: center; gap: 8px; }
+        nav .links a:hover, nav .links a.active { color: var(--text-main); background: rgba(255,255,255,0.05); }
+
+        /* Контент */
+        .workspace { max-width: 1400px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: 2fr 1fr; gap: 30px; }
+        @media (max-width: 1000px) { .workspace { grid-template-columns: 1fr; } }
+        
+        .panel {
+            background: var(--surface-color);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 24px;
+            padding: 30px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .panel::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.3), transparent);
+        }
+
+        .cam-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .cam-title { font-size: 1.5em; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+        .cam-status { display: flex; align-items: center; gap: 10px; font-size: 0.9em; font-weight: 600; color: var(--text-muted); background: rgba(0,0,0,0.2); padding: 8px 15px; border-radius: 30px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #475569; }
+        .dot.active { background: #22c55e; box-shadow: 0 0 10px #22c55e; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+        .cam-container {
+            width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 16px; overflow: hidden;
+            position: relative; border: 1px solid rgba(255,255,255,0.1); box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+        }
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .no-face-warning { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(239, 68, 68, 0.9); color: white; padding: 8px 20px; border-radius: 30px; font-weight: 600; font-size: 0.9em; display: none; backdrop-filter: blur(5px); z-index: 10; }
+        
+        .controls { display: flex; gap: 15px; margin-top: 25px; }
+        .btn { flex: 1; padding: 15px; border-radius: 12px; font-size: 1.1em; font-weight: 700; border: none; cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .btn-start { background: var(--primary); color: white; }
+        .btn-start:hover { background: #2563eb; transform: translateY(-2px); box-shadow: 0 10px 20px var(--primary-glow); }
+        .btn-stop { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn-stop:hover { background: rgba(239, 68, 68, 0.2); transform: translateY(-2px); }
+
+        /* Оценки эмоций */
+        .primary-emotion {
+            text-align: center;
+            padding: 30px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 20px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255,255,255,0.02);
+        }
+        .main-emoji { font-size: 5em; line-height: 1; margin-bottom: 10px; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5)); }
+        .main-label { font-size: 1.8em; font-weight: 900; color: var(--primary); letter-spacing: -0.5px; }
+
+        .bars-container { display: flex; flex-direction: column; gap: 15px; }
+        .bar-wrap { display: flex; flex-direction: column; gap: 5px; }
+        .bar-header { display: flex; justify-content: space-between; font-size: 0.95em; font-weight: 600; color: var(--text-muted); }
+        .bar-bg { width: 100%; height: 10px; background: #0f172a; border-radius: 5px; overflow: hidden; }
+        .bar-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); border-radius: 5px; width: 0%; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); }
+    </style>
+</head>
+<body>
+
+    <!-- Навигация (глобальная) -->
+    <nav>
+        <div class="container">
+            <a href="/" class="logo"><i class="fa-solid fa-microchip"></i> AI SYSTEM</a>
+            <ul class="links">
+                <li><a href="/"><i class="fa-solid fa-house"></i> Главная</a></li>
+                <li><a href="/camera" class="active"><i class="fa-solid fa-camera"></i> Камера</a></li>
+                <li><a href="/photo"><i class="fa-solid fa-image"></i> Фото</a></li>
+                <li><a href="/text"><i class="fa-solid fa-comment-dots"></i> Текст</a></li>
+                <li><a href="/audio"><i class="fa-solid fa-microphone"></i> Аудио</a></li>
+                <li><a href="/lie-detector" style="color: #ef4444;"><i class="fa-solid fa-fingerprint"></i> Детектор Лжи</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="workspace">
+        <!-- Левая колонка: Камера -->
+        <div class="panel">
+            <div class="cam-header">
+                <div class="cam-title"><i class="fa-solid fa-video"></i> Web-Анализатор</div>
+                <div class="cam-status"><div class="dot" id="statusDot"></div><span id="statusText">ОЖИДАНИЕ</span></div>
+            </div>
+            
+            <div class="cam-container">
+                <div class="no-face-warning" id="noFaceMsg"><i class="fa-solid fa-user-xmark"></i> Лицо не найдено в кадре</div>
+                <video id="videoStream" autoplay playsinline></video>
+                <canvas id="canvas" style="display:none;"></canvas>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-start" onclick="startCamera()"><i class="fa-solid fa-power-off"></i> ЗАПУСТИТЬ</button>
+                <button class="btn btn-stop" onclick="stopCamera()"><i class="fa-solid fa-stop"></i> ОСТАНОВИТЬ</button>
+            </div>
+        </div>
+
+        <!-- Правая колонка: Результаты -->
+        <div class="panel">
+            <h3 style="margin-bottom: 20px; font-weight: 800; color: var(--text-muted); display:flex; align-items:center; gap:10px;">
+                <i class="fa-solid fa-chart-simple"></i> Вектор Эмоций
+            </h3>
+            
+            <div class="primary-emotion">
+                <div class="main-emoji" id="currentEmoji">😶</div>
+                <div class="main-label" id="emotionLabel">Нейтрально</div>
+            </div>
+
+            <div class="bars-container" id="emotionsList">
+                <!-- Бары генерируются JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const emotionEmojis = { 'Angry': '😠', 'Disgust': '🤢', 'Fear': '😨', 'Happy': '😊', 'Neutral': '😐', 'Sad': '😢', 'Surprise': '😲' };
+        const emotionNamesRus = { 'Angry': 'Досада / Гнев', 'Disgust': 'Отвращение', 'Fear': 'Страх', 'Happy': 'Радость', 'Neutral': 'Нейтрально', 'Sad': 'Грусть', 'Surprise': 'Удивление' };
+        const emotions = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise'];
+        
+        let stream = null, isRunning = false;
+
+        function initUI() {
+            document.getElementById('emotionsList').innerHTML = emotions.map(e => `
+                <div class="bar-wrap">
+                    <div class="bar-header"><span>${emotionNamesRus[e]}</span><span id="val-${e}">0%</span></div>
+                    <div class="bar-bg"><div class="bar-fill" id="bar-${e}"></div></div>
+                </div>
+            `).join('');
+        }
+        initUI();
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                document.getElementById('videoStream').srcObject = stream;
+                isRunning = true;
+                updateStatus('СКАНИРОВАНИЕ...', true);
+                analyzeFrame();
+            } catch (err) { alert('Ошибка доступа: ' + err.message); }
+        }
+
+        function stopCamera() {
+            isRunning = false;
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            updateStatus('ОСТАНОВЛЕНО', false);
+            document.getElementById('emotionLabel').textContent = 'ВЫКЛ';
+            document.getElementById('currentEmoji').textContent = '-';
+            emotions.forEach(e => {
+                document.getElementById(`bar-${e}`).style.width = '0%';
+                document.getElementById(`val-${e}`).textContent = '0%';
+            });
+        }
+
+        function updateStatus(text, active) {
+            document.getElementById('statusText').textContent = text;
+            document.getElementById('statusDot').className = 'dot' + (active ? ' active' : '');
+        }
+
+        async function analyzeFrame() {
+            if (!isRunning) return;
+            const video = document.getElementById('videoStream');
+            const canvas = document.getElementById('canvas');
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+
+                canvas.toBlob(async (blob) => {
+                    const reader = new FileReader();
+                    reader.onloadend = async () => {
+                        try {
+                            const res = await fetch('/api/recognize-frame', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ image: reader.result })
+                            });
+                            const result = await res.json();
+
+                            if (result.face_detected) {
+                                document.getElementById('noFaceMsg').style.display = 'none';
+                                document.getElementById('currentEmoji').textContent = emotionEmojis[result.emotion];
+                                document.getElementById('emotionLabel').textContent = emotionNamesRus[result.emotion];
+                                
+                                emotions.forEach(e => {
+                                    let val = result.scores[e] || 0;
+                                    document.getElementById(`bar-${e}`).style.width = `${val}%`;
+                                    document.getElementById(`val-${e}`).textContent = `${val.toFixed(1)}%`;
+                                });
+                            } else {
+                                document.getElementById('noFaceMsg').style.display = 'block';
+                            }
+                        } catch (e) {}
+                    };
+                    reader.readAsDataURL(blob);
+                }, 'image/jpeg', 0.5);
+            }
+            setTimeout(analyzeFrame, 400); // 400ms -> 2.5 FPS для экономии ЦП
+        }
+    </script>
+</body>
+</html>

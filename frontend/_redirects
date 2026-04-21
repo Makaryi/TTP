@@ -1,0 +1,11 @@
+# Cloudflare Pages _redirects
+# Замените YOUR-APP на реальное имя вашего Render-приложения
+
+/api/*  https://emotion-ai-api.onrender.com/api/:splat  200
+
+# Обработка маршрутов без .html
+/camera         /camera.html    200
+/photo          /photo.html     200
+/text           /text.html      200
+/audio          /audio.html     200
+/lie-detector   /lie-detector.html  200

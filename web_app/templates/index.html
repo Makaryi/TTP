@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ИИ Эмоции & Полиграф PRO</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg-color: #0f172a;
+            --surface-color: #1e293b;
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --secondary: #8b5cf6;
+            --accent: #ec4899;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Навигация */
+        nav {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        nav .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 75px;
+        }
+
+        nav .logo {
+            font-size: 1.5em;
+            font-weight: 900;
+            background: linear-gradient(135deg, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        nav .links {
+            display: flex;
+            gap: 15px;
+            list-style: none;
+        }
+
+        nav .links a {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        nav .links a:hover, nav .links a.active {
+            color: var(--text-main);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .btn-poligraph-nav {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(185, 28, 28, 0.2)) !important;
+            color: #fca5a5 !important;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .btn-poligraph-nav:hover {
+            background: rgba(239, 68, 68, 0.3) !important;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+        }
+
+        /* Секция Hero */
+        .hero {
+            padding: 120px 20px 80px;
+            text-align: center;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 30px;
+            color: #60a5fa;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-bottom: 25px;
+            letter-spacing: 1px;
+        }
+
+        .hero h1 {
+            font-size: 4.5em;
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 25px;
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1px;
+        }
+
+        .hero p {
+            font-size: 1.3em;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 16px 35px;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 10px 25px var(--primary-glow);
+        }
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            background: #2563eb;
+            box-shadow: 0 15px 35px var(--primary-glow);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.05);
+            color: var(--text-main);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-3px);
+        }
+
+        /* Баннер Детектора лжи (вынесен отдельно) */
+        .lie-banner {
+            max-width: 1200px;
+            margin: 40px auto 80px;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.9)), url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+PGRlZnM+PHBhdHRlcm4gaWQ9InBhdCIgeD0iMCIgeT0iMCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjcGF0KSIvPjwvc3ZnPg==');
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 24px;
+            padding: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 25px 50px -12px rgba(239, 68, 68, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .lie-banner::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 4px; height: 100%;
+            background: #ef4444;
+            box-shadow: 0 0 20px #ef4444;
+        }
+
+        .lie-content h2 {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: #fca5a5;
+        }
+        .lie-content p {
+            font-size: 1.2em;
+            color: var(--text-muted);
+            max-width: 600px;
+            line-height: 1.6;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+            padding: 18px 40px;
+            font-size: 1.2em;
+            border-radius: 14px;
+            box-shadow: 0 10px 25px rgba(239, 68, 68, 0.4);
+        }
+        .btn-danger:hover {
+            background: #dc2626;
+            box-shadow: 0 15px 35px rgba(239, 68, 68, 0.6);
+            transform: translateY(-3px);
+        }
+
+        /* Сетка функционала */
+        .section-title {
+            text-align: center;
+            font-size: 2.5em;
+            margin: 80px 0 40px;
+            font-weight: 800;
+        }
+
+        .grid-features {
+            max-width: 1400px;
+            margin: 0 auto 80px;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+        }
+
+        .card {
+            background: var(--surface-color);
+            border: 1px solid rgba(255,255,255,0.05);
+            padding: 40px 30px;
+            border-radius: 20px;
+            transition: 0.4s;
+            position: relative;
+            overflow: hidden;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            border-color: rgba(59, 130, 246, 0.3);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+
+        .card-icon {
+            width: 60px;
+            height: 60px;
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--primary);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8em;
+            margin-bottom: 25px;
+            transition: 0.4s;
+        }
+
+        .card:hover .card-icon {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .card h3 {
+            font-size: 1.4em;
+            margin-bottom: 15px;
+            color: var(--text-main);
+        }
+
+        .card p {
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* Целевая аудитория (исправленный блок без наездов) */
+        .audience-section {
+            background: rgba(255,255,255,0.02);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding: 80px 20px;
+            margin: 80px 0;
+        }
+
+        .audience-grid {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+        }
+
+        .audience-box {
+            padding: 30px;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.03);
+            transition: 0.3s;
+        }
+        .audience-box:hover {
+            background: rgba(30, 41, 59, 0.8);
+            border-color: rgba(255,255,255,0.1);
+        }
+
+        .audience-box h3 {
+            color: var(--primary);
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Футер */
+        footer {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Адаптивность */
+        @media (max-width: 900px) {
+            .hero h1 { font-size: 3em; }
+            .lie-banner { flex-direction: column; text-align: center; gap: 30px; padding: 30px; }
+            .lie-banner::before { width: 100%; height: 4px; top: 0; left: 0; }
+            nav .links { display: none; } /* Можно добавить бургер-меню для мобилок */
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Навигация -->
+    <nav>
+        <div class="container">
+            <a href="/" class="logo"><i class="fa-solid fa-microchip"></i> AI SYSTEM</a>
+            <ul class="links">
+                <li><a href="/" class="active"><i class="fa-solid fa-house"></i> Главная</a></li>
+                <li><a href="/camera"><i class="fa-solid fa-camera"></i> Камера</a></li>
+                <li><a href="/photo"><i class="fa-solid fa-image"></i> Фото</a></li>
+                <li><a href="/text"><i class="fa-solid fa-comment-dots"></i> Текст</a></li>
+                <li><a href="/audio"><i class="fa-solid fa-microphone"></i> Аудио</a></li>
+                <li><a href="/lie-detector" class="btn-poligraph-nav"><i class="fa-solid fa-fingerprint"></i> Детектор Лжи</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Главный экран -->
+    <header class="hero">
+        <div class="hero-badge"><i class="fa-solid fa-bolt"></i> Нейросети v2.0 (Keras & OpenCV)</div>
+        <h1>Распознавание Эмоций<br>& Психоанализ</h1>
+        <p>Продвинутая система поведенческого анализа на базе искусственного интеллекта. Мгновенное выявление эмоций, стресса и микро-мимики лица в режиме реального времени.</p>
+        
+        <div class="hero-buttons">
+            <a href="/camera" class="btn btn-primary"><i class="fa-solid fa-play"></i> Начать сканирование</a>
+            <a href="#about" class="btn btn-secondary">Как это работает?</a>
+        </div>
+    </header>
+
+    <!-- Отдельный выделенный блок для Полиграфа -->
+    <div class="lie-banner">
+        <div class="lie-content">
+            <h2><i class="fa-solid fa-fingerprint"></i> Детектор Лжи (Полиграф)</h2>
+            <p>Премиум-инструмент. Мультимодальный анализ: ИИ синхронно считывает микро-мышечный стресс на лице и микроколебания (форманты) в вашем голосе, выявляя скрываемую информацию.</p>
+        </div>
+        <a href="/lie-detector" class="btn btn-danger"><i class="fa-solid fa-power-off"></i> ЗАПУСТИТЬ ПОЛИГРАФ</a>
+    </div>
+
+    <!-- Модули системы -->
+    <h2 class="section-title">Базовые модули системы</h2>
+    <div class="grid-features">
+        <a href="/camera" class="card">
+            <div class="card-icon"><i class="fa-solid fa-video"></i></div>
+            <h3>Web-Камера</h3>
+            <p>Непрерывный захват видеопотока. Распознавание 7 базовых эмоций (Радость, Грусть, Страх и т.д.) с частотой до 30 кадров в секунду.</p>
+        </a>
+
+        <a href="/photo" class="card">
+            <div class="card-icon"><i class="fa-regular fa-image"></i></div>
+            <h3>Анализ Фотографий</h3>
+            <p>Сканируйте групповые снимки. Модель найдет каждое лицо в кадре и выдаст точный эмоциональный вектор в процентах.</p>
+        </a>
+
+        <a href="/audio" class="card">
+            <div class="card-icon"><i class="fa-solid fa-wave-square"></i></div>
+            <h3>Голосовой тон</h3>
+            <p>Загрузка аудиофрагментов. Выявление эмоциональной "окраски" речи, интонаций и скрытой агрессии или страха.</p>
+        </a>
+
+        <a href="/text" class="card">
+            <div class="card-icon"><i class="fa-solid fa-file-lines"></i></div>
+            <h3>Текстовая семантика</h3>
+            <p>NLP-анализ письменного текста. Определение тональности сообщений (Sentiment Analysis), писем и постов.</p>
+        </a>
+    </div>
+
+    <!-- Целевая аудитория: корректный блок без наложений -->
+    <div class="audience-section" id="about">
+        <h2 class="section-title" style="margin-top: 0;">Для кого предназначен инструмент?</h2>
+        <div class="audience-grid">
+            <div class="audience-box">
+                <h3><i class="fa-solid fa-users-viewfinder"></i> HR и Рекрутинг</h3>
+                <p>Анализ эмоционального интеллекта (EQ) кандидатов с камеры. Выявление неуверенности, волнения при сложных вопросах во время онлайн-собеседований.</p>
+            </div>
+            
+            <div class="audience-box">
+                <h3><i class="fa-solid fa-briefcase"></i> Бизнес и Переговоры</h3>
+                <p>Полиграф реального времени полезен для контроля сделок. Отслеживайте нервозность и попытки сокрытия фактов при обсуждении ключевых условий.</p>
+            </div>
+            
+            <div class="audience-box">
+                <h3><i class="fa-solid fa-brain"></i> Практическая Психология</h3>
+                <p>Хранение и оцифровка терапии пациента. Отслеживание неуловимых микровыражений лица, которые человек пытается скрыть (подавленная грусть или гнев).</p>
+            </div>
+            
+            <div class="audience-box">
+                <h3><i class="fa-solid fa-shield-halved"></i> Службы Безопасности</h3>
+                <p>Выявление "маркеров стресса" в толпе по загруженным снимкам (Analysis of CCTV footage) и обнаружение аномального поведения.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Футер -->
+    <footer>
+        <div style="font-size: 1.5em; margin-bottom: 10px; color: var(--text-main);">
+            <i class="fa-solid fa-microchip"></i> AI SYSTEM v2.0
+        </div>
+        <p>Полиграф & Эмоциональный скан на базе TensorFlow, OpenCV и Web Audio API.</p>
+        <p style="margin-top: 15px; opacity: 0.5;">© 2026. Разработано для аналитики поведения.</p>
+    </footer>
+
+</body>
+</html>

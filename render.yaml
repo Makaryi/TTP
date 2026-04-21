@@ -1,0 +1,33 @@
+# render.yaml — автоматический деплой на Render.com
+# Документация: https://render.com/docs/render-yaml-spec
+
+services:
+  - type: web
+    name: emotion-ai-api
+    env: python
+    plan: free                        # бесплатный тариф
+    region: frankfurt                 # EU сервер (ближе к России)
+
+    # Директория с приложением
+    rootDir: web_app
+
+    # Установка зависимостей
+    buildCommand: pip install --upgrade pip && pip install -r ../requirements.prod.txt
+
+    # Запуск gunicorn (1 воркер на free tier)
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --preload
+
+    # Healthcheck (Render проверяет что сервер жив)
+    healthCheckPath: /api/status
+
+    # Авто-деплой при push в main
+    autoDeploy: true
+
+    # Переменные окружения
+    envVars:
+      # ID репозитория на HuggingFace: "username/repo-name"
+      # Задать в Render Dashboard → Environment → Add Variable
+      - key: HF_REPO_ID
+        sync: false                   # секрет — задаётся вручную
+      - key: PYTHON_VERSION
+        value: 3.11.0

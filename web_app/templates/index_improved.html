@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion Recognition - Improved</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab-button {
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+            border: 2px solid white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .tab-button.active {
+            background: white;
+            color: #667eea;
+        }
+
+        .tab-button:hover {
+            background: white;
+            color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        textarea,
+        input[type="text"],
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            font-family: inherit;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea:focus,
+        input[type="text"]:focus,
+        input[type="file"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        button {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .emotion-display {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 5px solid #667eea;
+        }
+
+        .emotion-display.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .main-emotion {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .emotion-circle {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 15px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3em;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .emotion-name {
+            font-size: 2em;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .confidence {
+            font-size: 1.2em;
+            color: #666;
+        }
+
+        .emotion-bar {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            gap: 10px;
+        }
+
+        .emotion-label {
+            min-width: 100px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .emotion-bar-container {
+            flex: 1;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .emotion-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.85em;
+            transition: width 0.3s ease;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .error {
+            background: #fee;
+            border-left-color: #f44;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .success {
+            background: #efe;
+            border-left-color: #4f4;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .video-container {
+            position: relative;
+            margin: 20px 0;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+
+            header h1 {
+                font-size: 1.8em;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .tab-button {
+                width: 100%;
+            }
+        }
+
+        .emotion-emoji {
+            font-size: 1.5em;
+            margin-right: 10px;
+        }
+
+        .face-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .face-result-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .face-result-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .face-result-card .confidence {
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .keywords {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+
+        .keyword-tag {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 15px;
+            margin: 3px;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>😊 Emotion Recognition AI</h1>
+            <p>Recognize emotions from text and facial expressions</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('text')">📝 Text Analysis</button>
+            <button class="tab-button" onclick="switchTab('face')">📷 Face Recognition</button>
+            <button class="tab-button" onclick="switchTab('combined')">🎯 Combined Analysis</button>
+        </div>
+
+        <!-- TEXT EMOTION TAB -->
+        <div id="text" class="tab-content active">
+            <h2>Text Emotion Recognition</h2>
+            <p style="color: #666; margin-bottom: 20px;">
+                Supports English and Russian text. Analyzes tone and keywords to detect emotions.
+            </p>
+
+            <div class="input-group">
+                <label for="textInput">Enter your text:</label>
+                <textarea id="textInput"
+                    placeholder="Type something... (English or Russian)"></textarea>
+            </div>
+
+            <button onclick="recognizeText()">
+                <span id="textBtnText">Analyze Text</span>
+            </button>
+
+            <div id="textResult" class="emotion-display">
+                <div class="main-emotion">
+                    <div class="emotion-circle" id="textEmotionCircle"></div>
+                    <div class="emotion-name" id="textEmotionName"></div>
+                    <div class="confidence" id="textConfidence"></div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <h3 style="margin-bottom: 15px;">All Emotions</h3>
+                    <div id="textEmotionBars"></div>
+                </div>
+
+                <div id="textKeywords" class="keywords" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- FACE RECOGNITION TAB -->
+        <div id="face" class="tab-content">
+            <h2>Facial Emotion Recognition</h2>
+            <p style="color: #666; margin-bottom: 20px;">
+                Upload an image or use your webcam to detect emotions from facial expressions.
+            </p>
+
+            <div class="input-group">
+                <label for="faceImage">Select or capture image:</label>
+                <input type="file" id="faceImage" accept="image/*" />
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <button onclick="captureFromWebcam()">📷 Capture from Webcam</button>
+            </div>
+
+            <div id="webcamContainer" class="video-container" style="display: none;">
+                <video id="webcam" autoplay playsinline></video>
+                <div style="padding: 10px; background: #333; color: white; text-align: center;">
+                    <button onclick="captureSnapshot()" style="background: #f44; margin-right: 10px;">
+                        📸 Capture Snapshot
+                    </button>
+                    <button onclick="stopWebcam()" style="background: #666;">
+                        ✖ Stop
+                    </button>
+                </div>
+            </div>
+
+            <button onclick="recognizeFace()" id="faceBtn">
+                <span id="faceBtnText">Analyze Face</span>
+            </button>
+
+            <div id="faceResult" class="emotion-display">
+                <div id="faceResults"></div>
+            </div>
+        </div>
+
+        <!-- COMBINED ANALYSIS TAB -->
+        <div id="combined" class="tab-content">
+            <h2>Combined Emotion Analysis</h2>
+            <p style="color: #666; margin-bottom: 20px;">
+                Analyze both facial expressions and text together.
+            </p>
+
+            <div class="two-column">
+                <div>
+                    <div class="input-group">
+                        <label for="combinedText">Your thoughts:</label>
+                        <textarea id="combinedText"
+                            placeholder="What are you thinking?"></textarea>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="input-group">
+                        <label for="combinedImage">Your face:</label>
+                        <input type="file" id="combinedImage" accept="image/*" />
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="recognizeCombined()">🎯 Analyze Both</button>
+
+            <div id="combinedResult" class="emotion-display">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h3 style="color: #667eea; margin-bottom: 15px;">📝 Text Emotion</h3>
+                        <div id="combinedTextResult"></div>
+                    </div>
+
+                    <div>
+                        <h3 style="color: #667eea; margin-bottom: 15px;">😊 Face Emotion</h3>
+                        <div id="combinedFaceResult"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const EMOTION_EMOJIS = {
+            'Angry': '😠',
+            'Disgust': '🤢',
+            'Fear': '😨',
+            'Happy': '😊',
+            'Neutral': '😐',
+            'Sad': '😢',
+            'Surprise': '😲'
+        };
+
+        let webcamStream = null;
+
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function formatConfidence(value) {
+            return (value * 100).toFixed(1) + '%';
+        }
+
+        function displayEmotionBars(emotions, containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            const sorted = Object.entries(emotions)
+                .sort((a, b) => b[1] - a[1]);
+
+            sorted.forEach(([emotion, confidence]) => {
+                const percentage = (confidence * 100).toFixed(0);
+                const bar = document.createElement('div');
+                bar.className = 'emotion-bar';
+                bar.innerHTML = `
+                    <div class="emotion-label">${emotion}</div>
+                    <div class="emotion-bar-container">
+                        <div class="emotion-bar-fill" style="width: ${percentage}%">
+                            ${percentage}%
+                        </div>
+                    </div>
+                `;
+                container.appendChild(bar);
+            });
+        }
+
+        // TEXT EMOTION
+        async function recognizeText() {
+            const text = document.getElementById('textInput').value.trim();
+
+            if (!text) {
+                alert('Please enter some text!');
+                return;
+            }
+
+            const btn = document.getElementById('textBtnText');
+            const originalText = btn.textContent;
+            btn.textContent = 'Analyzing...';
+
+            try {
+                const response = await fetch('/api/recognize-text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    const result = document.getElementById('textResult');
+                    document.getElementById('textEmotionCircle').textContent =
+                        EMOTION_EMOJIS[data.emotion];
+                    document.getElementById('textEmotionName').textContent = data.emotion;
+                    document.getElementById('textConfidence').textContent =
+                        `Confidence: ${formatConfidence(data.confidence)}`;
+
+                    displayEmotionBars(data.all_emotions, 'textEmotionBars');
+
+                    if (data.keywords && data.keywords.length > 0) {
+                        const keywordsDiv = document.getElementById('textKeywords');
+                        keywordsDiv.innerHTML = '<strong>Keywords found:</strong> ' +
+                            data.keywords.map(k => `<span class="keyword-tag">${k}</span>`)
+                                .join('');
+                        keywordsDiv.style.display = 'block';
+                    }
+
+                    result.classList.add('show');
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error analyzing text: ' + error.message);
+            } finally {
+                btn.textContent = originalText;
+            }
+        }
+
+        // FACE RECOGNITION
+        async function recognizeFace() {
+            const imageInput = document.getElementById('faceImage');
+
+            if (!imageInput.files[0]) {
+                alert('Please select an image first!');
+                return;
+            }
+
+            const file = imageInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async (e) => {
+                const btn = document.getElementById('faceBtnText');
+                const originalText = btn.textContent;
+                btn.textContent = 'Analyzing...';
+
+                try {
+                    const response = await fetch('/api/recognize-face', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ image: e.target.result })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.status === 'success') {
+                        const result = document.getElementById('faceResult');
+                        const resultsHtml = document.getElementById('faceResults');
+
+                        if (data.faces_detected === 0) {
+                            resultsHtml.innerHTML = '<p style="color: #666;">No faces detected. Please try another image.</p>';
+                        } else {
+                            resultsHtml.innerHTML = data.results.map((face, idx) => `
+                                <div class="face-result-card">
+                                    <h3 style="margin-bottom: 10px;">
+                                        ${EMOTION_EMOJIS[face.emotion]} ${face.emotion}
+                                    </h3>
+                                    <div class="confidence">
+                                        Confidence: ${formatConfidence(face.confidence)}
+                                    </div>
+                                    <div style="font-size: 0.85em; color: #666; margin-bottom: 10px;">
+                                        ${data.faces_detected > 1 ? `Face ${idx + 1}` : 'Person'}
+                                    </div>
+                                    <div style="text-align: left; margin-top: 10px;">
+                                        ${Object.entries(face.all_emotions)
+                                            .sort((a, b) => b[1] - a[1])
+                                            .map(([e, c]) => `
+                                            <div style="font-size: 0.8em; color: #666;">
+                                                ${e}: ${formatConfidence(c)}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('');
+                        }
+
+                        result.classList.add('show');
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                } catch (error) {
+                    alert('Error analyzing face: ' + error.message);
+                } finally {
+                    btn.textContent = originalText;
+                }
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        // WEBCAM
+        async function captureFromWebcam() {
+            const container = document.getElementById('webcamContainer');
+            const video = document.getElementById('webcam');
+            const btn = event.target;
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user' }
+                });
+
+                webcamStream = stream;
+                video.srcObject = stream;
+                container.style.display = 'block';
+                btn.textContent = '📷 Webcam Active';
+                btn.disabled = true;
+            } catch (error) {
+                alert('Could not access webcam: ' + error.message);
+            }
+        }
+
+        function stopWebcam() {
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                document.getElementById('webcamContainer').style.display = 'none';
+                document.querySelector('button[onclick="captureFromWebcam()"]').textContent =
+                    '📷 Capture from Webcam';
+                document.querySelector('button[onclick="captureFromWebcam()"]').disabled = false;
+            }
+        }
+
+        function captureSnapshot() {
+            const video = document.getElementById('webcam');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+
+            const imageData = canvas.toDataURL('image/jpeg');
+            document.getElementById('faceImage').type = 'hidden';
+
+            // Create hidden input or store data
+            window.currentCapturedImage = imageData;
+
+            const ctx = document.createElement('canvas').getContext('2d');
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                canvas.getContext('2d').drawImage(img, 0, 0);
+                document.getElementById('faceImage').value = canvas.toDataURL('image/jpeg');
+            };
+            img.src = imageData;
+
+            // Trigger facial recognition
+            const file = new File([canvas.toBlob((blob) => {
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(new File([blob], 'capture.jpg', { type: 'image/jpeg' }));
+                document.getElementById('faceImage').files = dataTransfer.files;
+
+                recognizeFace();
+                stopWebcam();
+            })], 'capture.jpg', { type: 'image/jpeg' });
+        }
+
+        // COMBINED
+        async function recognizeCombined() {
+            const text = document.getElementById('combinedText').value.trim();
+            const imageFile = document.getElementById('combinedImage').files[0];
+
+            if (!text && !imageFile) {
+                alert('Please provide text or an image!');
+                return;
+            }
+
+            let imageData = null;
+            if (imageFile) {
+                const reader = new FileReader();
+                await new Promise((resolve) => {
+                    reader.onload = (e) => {
+                        imageData = e.target.result;
+                        resolve();
+                    };
+                    reader.readAsDataURL(imageFile);
+                });
+            }
+
+            try {
+                const response = await fetch('/api/recognize-combined', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        image: imageData
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    const result = document.getElementById('combinedResult');
+
+                    // Text emotion
+                    if (data.text_emotion) {
+                        const textHtml = `
+                            <div style="text-align: center;">
+                                <div style="font-size: 3em; margin-bottom: 10px;">
+                                    ${EMOTION_EMOJIS[data.text_emotion.emotion]}
+                                </div>
+                                <div style="font-size: 1.5em; font-weight: 700; color: #667eea; margin-bottom: 10px;">
+                                    ${data.text_emotion.emotion}
+                                </div>
+                                <div style="color: #666;">
+                                    ${formatConfidence(data.text_emotion.confidence)}
+                                </div>
+                            </div>
+                        `;
+                        document.getElementById('combinedTextResult').innerHTML = textHtml;
+                    }
+
+                    // Face emotions
+                    if (data.face_emotions && data.face_emotions.length > 0) {
+                        const faceHtml = data.face_emotions.map(face => `
+                            <div style="text-align: center;">
+                                <div style="font-size: 3em; margin-bottom: 10px;">
+                                    ${EMOTION_EMOJIS[face.emotion]}
+                                </div>
+                                <div style="font-size: 1.5em; font-weight: 700; color: #764ba2; margin-bottom: 10px;">
+                                    ${face.emotion}
+                                </div>
+                                <div style="color: #666;">
+                                    ${formatConfidence(face.confidence)}
+                                </div>
+                            </div>
+                        `).join('');
+                        document.getElementById('combinedFaceResult').innerHTML = faceHtml;
+                    }
+
+                    result.classList.add('show');
+                }
+            } catch (error) {
+                alert('Error in combined analysis: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
